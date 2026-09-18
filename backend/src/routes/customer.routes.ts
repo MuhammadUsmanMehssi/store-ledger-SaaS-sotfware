@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, requireTenant, requireTenantModule, requireCrudPermission } from '../middlewares/auth';
+import { requireIdempotency } from '../middlewares/idempotency';
 import { validate } from '../middlewares/validate';
 import * as controller from '../controllers/customer.controller';
 import {
@@ -22,8 +23,13 @@ router.patch('/:id',
   requireCrudPermission('customers', 'update'), validate({ params: idParamSchema, body: partyUpdateSchema }), controller.update);
 router.delete('/:id',
   requireCrudPermission('customers', 'delete'), validate({ params: idParamSchema }), controller.remove);
-router.post('/:id/payments',
-  requireCrudPermission('customers', 'create'), validate({ params: idParamSchema, body: paymentSchema }), controller.payment);
+router.post(
+  '/:id/payments',
+  requireIdempotency(),
+  requireCrudPermission('customers', 'create'),
+  validate({ params: idParamSchema, body: paymentSchema }),
+  controller.payment
+);
 router.get('/:id/transactions', validate({ params: idParamSchema }), controller.transactions);
 
 export default router;

@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPatch, apiPost } from './client'
+import { apiDelete, apiGet, apiPatch, apiPost, createIdempotencyKey } from './client'
 import type { AccountTransaction, ListParams, PaymentMethod, Supplier } from '@/types'
 
 export const suppliersApi = {
@@ -13,11 +13,19 @@ export const suppliersApi = {
   payment: (
     id: string,
     body: { amount: number; paymentMethod: PaymentMethod; notes?: string },
-  ) => apiPost<Supplier>(`/suppliers/${id}/payments`, body),
+    options?: { idempotencyKey?: string },
+  ) =>
+    apiPost<Supplier>(`/suppliers/${id}/payments`, body, {
+      idempotencyKey: options?.idempotencyKey ?? createIdempotencyKey(),
+    }),
   refund: (
     id: string,
     body: { amount: number; paymentMethod: PaymentMethod; notes?: string },
-  ) => apiPost<{ amount: number; balanceAfter: number }>(`/suppliers/${id}/refunds`, body),
+    options?: { idempotencyKey?: string },
+  ) =>
+    apiPost<{ amount: number; balanceAfter: number }>(`/suppliers/${id}/refunds`, body, {
+      idempotencyKey: options?.idempotencyKey ?? createIdempotencyKey(),
+    }),
   ledger: (id: string, params?: ListParams) =>
     apiGet<AccountTransaction[]>(`/suppliers/${id}/transactions`, params),
 }

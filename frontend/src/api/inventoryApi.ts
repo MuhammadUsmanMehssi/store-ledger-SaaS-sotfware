@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './client'
+import { apiGet, apiPost, createIdempotencyKey } from './client'
 import type { ListParams, Product, StockMovement } from '@/types'
 
 export const inventoryApi = {
@@ -6,10 +6,16 @@ export const inventoryApi = {
     apiGet<Product[]>('/inventory/stock', params),
   movements: (params?: ListParams & { productId?: string; type?: string }) =>
     apiGet<StockMovement[]>('/inventory/movements', params),
-  adjust: (body: {
-    productId: string
-    quantity: number
-    reason: string
-    notes?: string
-  }) => apiPost<Product>('/inventory/adjust', body),
+  adjust: (
+    body: {
+      productId: string
+      quantity: number
+      reason: string
+      notes?: string
+    },
+    options?: { idempotencyKey?: string },
+  ) =>
+    apiPost<Product>('/inventory/adjust', body, {
+      idempotencyKey: options?.idempotencyKey ?? createIdempotencyKey(),
+    }),
 }

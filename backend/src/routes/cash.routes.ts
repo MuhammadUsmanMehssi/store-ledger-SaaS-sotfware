@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, requireStoreRole, requireTenant, requireTenantModule, requireCrudPermission } from '../middlewares/auth';
+import { requireIdempotency } from '../middlewares/idempotency';
 import { validate } from '../middlewares/validate';
 import * as controller from '../controllers/cash.controller';
 import {
@@ -16,9 +17,11 @@ router.use(authenticate, requireTenant, requireTenantModule('cash'));
 router.get('/today', controller.getToday);
 router.get('/summary', controller.summary);
 router.post('/open',
+  requireIdempotency(),
   requireCrudPermission('cash', 'create'), validate({ body: openSessionSchema }), controller.open);
 router.post(
   '/close',
+  requireIdempotency(),
   requireCrudPermission('cash', 'create'),
   requireStoreRole('OWNER', 'MANAGER'),
   validate({ body: closeSessionSchema }),

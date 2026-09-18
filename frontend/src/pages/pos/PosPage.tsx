@@ -21,7 +21,7 @@ import { categoriesApi } from '@/api/categoriesApi'
 import { customersApi } from '@/api/customersApi'
 import { productsApi } from '@/api/productsApi'
 import { saleReturnsApi, salesApi } from '@/api/salesApi'
-import { ApiError } from '@/api/client'
+import { ApiError, createIdempotencyKey } from '@/api/client'
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher'
 import { ReceiptPrint } from '@/components/receipt/ReceiptPrint'
 import { Button } from '@/components/ui/Button'
@@ -68,6 +68,8 @@ export default function PosPage() {
   const toast = useToast()
   const qc = useQueryClient()
   const searchRef = useRef<HTMLInputElement>(null)
+  const saleIdempotencyKeyRef = useRef<string | null>(null)
+  const returnIdempotencyKeyRef = useRef<string | null>(null)
 
   const [search, setSearch] = useState('')
   const debounced = useDebounce(search, 200)
@@ -314,22 +316,30 @@ export default function PosPage() {
             : grandTotal
 
       const sale = (
-        await salesApi.create({
-          customerId: customerId || null,
-          discountAmount: cartDiscount,
-          paidAmount,
-          paymentMethod,
-          items: cart.map((l) => ({
-            productId: l.productId,
-            quantity: l.quantity,
-            unitPrice: l.unitPrice,
-            discount: l.discount,
-          })),
-        })
+        await salesApi.create(
+          {
+            customerId: customerId || null,
+            discountAmount: cartDiscount,
+            paidAmount,
+            paymentMethod,
+            items: cart.map((l) => ({
+              productId: l.productId,
+              quantity: l.quantity,
+              unitPrice: l.unitPrice,
+              discount: l.discount,
+            })),
+          },
+          {
+            idempotencyKey:
+              saleIdempotencyKeyRef.current ??
+              (saleIdempotencyKeyRef.current = createIdempotencyKey()),
+          },
+        )
       ).data
       return { sale, ctx }
     },
     onSuccess: ({ sale, ctx }) => {
+      saleIdempotencyKeyRef.current = null
       if (ctx?.isCredit && ctx.customerName) {
         toast.success(
           t('saleAddedToKhata'),
@@ -412,13 +422,21 @@ export default function PosPage() {
           unitPrice: toNumber(item.unitPrice),
         }))
       if (!payloadItems.length) throw new ApiError(t('enterReturnQuantities'), 400)
-      return saleReturnsApi.create({
-        saleId: returnSaleId,
-        refundMethod,
-        items: payloadItems,
-      })
+      return saleReturnsApi.create(
+        {
+          saleId: returnSaleId,
+          refundMethod,
+          items: payloadItems,
+        },
+        {
+          idempotencyKey:
+            returnIdempotencyKeyRef.current ??
+            (returnIdempotencyKeyRef.current = createIdempotencyKey()),
+        },
+      )
     },
     onSuccess: (res) => {
+      returnIdempotencyKeyRef.current = null
       toast.success(t('returnRecorded'), res.data.returnNumber)
       setReturnOpen(false)
       setReturnQtys({})

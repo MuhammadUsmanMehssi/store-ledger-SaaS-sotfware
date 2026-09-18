@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost } from './client'
+import { apiGet, apiPatch, apiPost, createIdempotencyKey } from './client'
 import type { CashSession } from '@/types'
 
 export type CashSessionToday = CashSession & {
@@ -7,10 +7,20 @@ export type CashSessionToday = CashSession & {
 
 export const cashApi = {
   today: () => apiGet<CashSessionToday | null>('/cash/today'),
-  open: (body: { openingCash: number; notes?: string }) =>
-    apiPost<CashSession>('/cash/open', body),
-  close: (body: { actualCash: number; notes?: string }) =>
-    apiPost<CashSession>('/cash/close', body),
+  open: (
+    body: { openingCash: number; notes?: string },
+    options?: { idempotencyKey?: string },
+  ) =>
+    apiPost<CashSession>('/cash/open', body, {
+      idempotencyKey: options?.idempotencyKey ?? createIdempotencyKey(),
+    }),
+  close: (
+    body: { actualCash: number; notes?: string },
+    options?: { idempotencyKey?: string },
+  ) =>
+    apiPost<CashSession>('/cash/close', body, {
+      idempotencyKey: options?.idempotencyKey ?? createIdempotencyKey(),
+    }),
   reopen: () => apiPost<CashSession>('/cash/reopen'),
   cancel: () => apiPost<{ success: boolean; message: string }>('/cash/cancel'),
   updateOpening: (body: { openingCash: number; notes?: string }) =>

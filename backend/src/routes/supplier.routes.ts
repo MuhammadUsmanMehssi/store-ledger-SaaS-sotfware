@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { authenticate, requireStoreRole, requireTenant } from '../middlewares/auth';
+import { authenticate, requireStoreRole, requireTenant, requireTenantModule } from '../middlewares/auth';
+import { requireIdempotency } from '../middlewares/idempotency';
 import { validate } from '../middlewares/validate';
 import * as controller from '../controllers/supplier.controller';
 import {
@@ -12,7 +13,7 @@ import {
 
 const router = Router();
 
-router.use(authenticate, requireTenant);
+router.use(authenticate, requireTenant, requireTenantModule('suppliers'));
 
 router.get('/', validate({ query: supplierListQuerySchema }), controller.list);
 router.post(
@@ -36,12 +37,14 @@ router.delete(
 );
 router.post(
   '/:id/payments',
+  requireIdempotency(),
   requireStoreRole('OWNER', 'MANAGER'),
   validate({ params: idParamSchema, body: supplierPaymentSchema }),
   controller.payment
 );
 router.post(
   '/:id/refunds',
+  requireIdempotency(),
   requireStoreRole('OWNER', 'MANAGER'),
   validate({ params: idParamSchema, body: supplierPaymentSchema }),
   controller.refund

@@ -129,6 +129,7 @@ model Tenant {
   cashTransactions   CashTransaction[]
   documentSequences  DocumentSequence[]
   passwordResets     PasswordResetToken[]
+  idempotencyKeys    IdempotencyKey[]
 
   @@map("tenants")
 }
@@ -709,4 +710,27 @@ model DocumentSequence {
 
   @@unique([tenantId, docType])
   @@map("document_sequences")
+}
+
+/** Client-supplied keys to prevent duplicate money/stock side-effects on retries. */
+model IdempotencyKey {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  key            String
+  route          String
+  requestHash    String   @map("request_hash")
+  status         String   @default("PENDING") // PENDING | COMPLETED | FAILED
+  responseStatus Int?     @map("response_status")
+  responseBody   Json?    @map("response_body")
+  userId         String?  @map("user_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  expiresAt      DateTime @map("expires_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@index([expiresAt])
+  @@index([tenantId, createdAt])
+  @@map("idempotency_keys")
 }

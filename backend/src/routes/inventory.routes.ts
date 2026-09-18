@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, requireStoreRole, requireTenant, requireTenantModule, requireCrudPermission } from '../middlewares/auth';
+import { requireIdempotency } from '../middlewares/idempotency';
 import { validate } from '../middlewares/validate';
 import * as controller from '../controllers/inventory.controller';
 import {
@@ -26,6 +27,7 @@ router.get(
 );
 router.post(
   '/adjust',
+  requireIdempotency(),
   requireTenantModule('adjustments'),
   requireCrudPermission('inventory', 'create'),
   requireStoreRole('OWNER', 'MANAGER'),
