@@ -124,9 +124,24 @@ export async function apiGet<T>(
   return { data: data.data, message: data.message, pagination: data.pagination }
 }
 
-export async function apiPost<T>(url: string, body?: unknown): Promise<ApiResult<T>> {
-  const { data } = await apiClient.post<ApiResponse<T>>(url, body)
+export async function apiPost<T>(
+  url: string,
+  body?: unknown,
+  options?: { idempotencyKey?: string },
+): Promise<ApiResult<T>> {
+  const { data } = await apiClient.post<ApiResponse<T>>(url, body, {
+    headers: options?.idempotencyKey
+      ? { 'Idempotency-Key': options.idempotencyKey }
+      : undefined,
+  })
   return { data: data.data, message: data.message, pagination: data.pagination }
+}
+
+export function createIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `idem_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
 }
 
 export async function apiPatch<T>(url: string, body?: unknown): Promise<ApiResult<T>> {
