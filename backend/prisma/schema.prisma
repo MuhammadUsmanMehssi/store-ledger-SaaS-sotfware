@@ -1,0 +1,712 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PlatformRole {
+  PLATFORM_ADMIN
+  USER
+}
+
+enum StoreRole {
+  OWNER
+  MANAGER
+  CASHIER
+}
+
+enum StockMovementType {
+  OPENING
+  PURCHASE
+  SALE
+  PURCHASE_RETURN
+  SALE_RETURN
+  ADJUSTMENT
+}
+
+enum PurchaseStatus {
+  DRAFT
+  COMPLETED
+  CANCELLED
+  PARTIALLY_RETURNED
+  RETURNED
+}
+
+enum SaleStatus {
+  HELD
+  COMPLETED
+  PARTIAL
+  CANCELLED
+  PARTIALLY_RETURNED
+  RETURNED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  ONLINE
+  CREDIT
+  MIXED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum AccountPartyType {
+  CUSTOMER
+  SUPPLIER
+}
+
+enum AccountTxnType {
+  OPENING
+  SALE
+  SALE_RETURN
+  PURCHASE
+  PURCHASE_RETURN
+  PAYMENT
+  REFUND
+  ADJUSTMENT
+}
+
+enum CashTxnType {
+  OPENING
+  SALE
+  CUSTOMER_PAYMENT
+  EXPENSE
+  SUPPLIER_PAYMENT
+  REFUND
+  ADJUSTMENT
+  CLOSING
+}
+
+model Tenant {
+  id                 String   @id @default(uuid())
+  name               String
+  businessName       String?  @map("business_name")
+  phone              String?
+  email              String?
+  address            String?
+  logoUrl            String?  @map("logo_url")
+  currency           String   @default("PKR")
+  currencySymbol     String   @default("Rs") @map("currency_symbol")
+  taxEnabled         Boolean  @default(false) @map("tax_enabled")
+  taxRate            Decimal  @default(0) @map("tax_rate") @db.Decimal(8, 4)
+  invoicePrefix      String   @default("INV") @map("invoice_prefix")
+  purchasePrefix     String   @default("PUR") @map("purchase_prefix")
+  receiptFooter      String?  @map("receipt_footer")
+  lowStockThreshold  Int      @default(5) @map("low_stock_threshold")
+  allowNegativeStock Boolean  @default(false) @map("allow_negative_stock")
+  /** Platform-admin controlled feature modules for this store */
+  enabledModules     Json     @default("{}") @map("enabled_modules")
+  isActive           Boolean  @default(true) @map("is_active")
+  onboardingComplete Boolean  @default(false) @map("onboarding_complete")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  users              User[]
+  categories         Category[]
+  brands             Brand[]
+  units              Unit[]
+  products           Product[]
+  stockMovements     StockMovement[]
+  suppliers          Supplier[]
+  customers          Customer[]
+  purchases          Purchase[]
+  purchaseReturns    PurchaseReturn[]
+  sales              Sale[]
+  saleReturns        SaleReturn[]
+  heldSales          HeldSale[]
+  expenses           Expense[]
+  expenseCategories  ExpenseCategory[]
+  accountTxns        AccountTransaction[]
+  cashSessions       CashSession[]
+  cashTransactions   CashTransaction[]
+  documentSequences  DocumentSequence[]
+  passwordResets     PasswordResetToken[]
+
+  @@map("tenants")
+}
+
+model User {
+  id             String       @id @default(uuid())
+  tenantId       String?      @map("tenant_id")
+  email          String       @unique
+  passwordHash   String       @map("password_hash")
+  fullName       String       @map("full_name")
+  phone          String?
+  platformRole   PlatformRole @default(USER) @map("platform_role")
+  storeRole      StoreRole?   @map("store_role")
+  /** Optional per-user CRUD overrides; null = role defaults */
+  permissions    Json?        @map("permissions")
+  isActive       Boolean      @default(true) @map("is_active")
+  lastLoginAt    DateTime?    @map("last_login_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  tenant         Tenant?      @relation(fields: [tenantId], references: [id])
+  refreshTokens  RefreshToken[]
+  passwordResets PasswordResetToken[]
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tenantId  String?  @map("tenant_id")
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([tokenHash])
+  @@map("password_reset_tokens")
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdBy   String?  @map("created_by")
+  updatedBy   String?  @map("updated_by")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  products Product[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+  @@map("categories")
+}
+
+model Brand {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdBy   String?  @map("created_by")
+  updatedBy   String?  @map("updated_by")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  products Product[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+  @@map("brands")
+}
+
+model Unit {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  name          String
+  abbreviation  String
+  baseUnitId    String?  @map("base_unit_id")
+  conversionFactor Decimal @default(1) @map("conversion_factor") @db.Decimal(18, 6)
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  baseUnit Unit?     @relation("UnitConversion", fields: [baseUnitId], references: [id])
+  derived  Unit[]    @relation("UnitConversion")
+  products Product[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("units")
+}
+
+model Product {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  name           String
+  sku            String?
+  barcode        String?
+  categoryId     String?  @map("category_id")
+  brandId        String?  @map("brand_id")
+  flavor         String?
+  size           String?
+  unitId         String?  @map("unit_id")
+  purchasePrice  Decimal  @default(0) @map("purchase_price") @db.Decimal(18, 4)
+  salePrice      Decimal  @default(0) @map("sale_price") @db.Decimal(18, 4)
+  avgCost        Decimal  @default(0) @map("avg_cost") @db.Decimal(18, 4)
+  minimumStock   Decimal  @default(0) @map("minimum_stock") @db.Decimal(18, 4)
+  currentStock   Decimal  @default(0) @map("current_stock") @db.Decimal(18, 4)
+  description    String?
+  imageUrl       String?  @map("image_url")
+  variantGroupId String?  @map("variant_group_id")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdBy      String?  @map("created_by")
+  updatedBy      String?  @map("updated_by")
+  deletedAt      DateTime? @map("deleted_at")
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  category       Category?       @relation(fields: [categoryId], references: [id])
+  brand          Brand?          @relation(fields: [brandId], references: [id])
+  unit           Unit?           @relation(fields: [unitId], references: [id])
+  stockMovements StockMovement[]
+  purchaseItems  PurchaseItem[]
+  saleItems      SaleItem[]
+  purchaseReturnItems PurchaseReturnItem[]
+  saleReturnItems     SaleReturnItem[]
+  heldSaleItems  HeldSaleItem[]
+
+  @@unique([tenantId, sku])
+  @@unique([tenantId, barcode])
+  @@index([tenantId, name])
+  @@index([tenantId, isActive])
+  @@index([tenantId, categoryId])
+  @@index([tenantId, brandId])
+  @@index([tenantId, variantGroupId])
+  @@map("products")
+}
+
+model StockMovement {
+  id            String            @id @default(uuid())
+  tenantId      String            @map("tenant_id")
+  productId     String            @map("product_id")
+  type          StockMovementType
+  quantity      Decimal           @db.Decimal(18, 4)
+  unitCost      Decimal           @default(0) @map("unit_cost") @db.Decimal(18, 4)
+  balanceAfter  Decimal           @map("balance_after") @db.Decimal(18, 4)
+  referenceType String?           @map("reference_type")
+  referenceId   String?           @map("reference_id")
+  reason        String?
+  notes         String?
+  createdBy     String?           @map("created_by")
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([tenantId, productId, createdAt])
+  @@index([tenantId, type, createdAt])
+  @@index([tenantId, referenceType, referenceId])
+  @@map("stock_movements")
+}
+
+model Supplier {
+  id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
+  name            String
+  phone           String?
+  email           String?
+  address         String?
+  openingBalance  Decimal  @default(0) @map("opening_balance") @db.Decimal(18, 4)
+  currentBalance  Decimal  @default(0) @map("current_balance") @db.Decimal(18, 4)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdBy       String?  @map("created_by")
+  updatedBy       String?  @map("updated_by")
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  purchases       Purchase[]
+  purchaseReturns PurchaseReturn[]
+
+  @@index([tenantId, name])
+  @@index([tenantId, isActive])
+  @@map("suppliers")
+}
+
+model Customer {
+  id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
+  name            String
+  phone           String?
+  email           String?
+  address         String?
+  openingBalance  Decimal  @default(0) @map("opening_balance") @db.Decimal(18, 4)
+  currentBalance  Decimal  @default(0) @map("current_balance") @db.Decimal(18, 4)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdBy       String?  @map("created_by")
+  updatedBy       String?  @map("updated_by")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  sales       Sale[]
+  saleReturns SaleReturn[]
+  heldSales   HeldSale[]
+
+  @@index([tenantId, name])
+  @@index([tenantId, phone])
+  @@index([tenantId, isActive])
+  @@map("customers")
+}
+
+model Purchase {
+  id              String         @id @default(uuid())
+  tenantId        String         @map("tenant_id")
+  supplierId      String?        @map("supplier_id")
+  invoiceNumber   String         @map("invoice_number")
+  purchaseDate    DateTime       @default(now()) @map("purchase_date")
+  status          PurchaseStatus @default(DRAFT)
+  subtotal        Decimal        @default(0) @db.Decimal(18, 4)
+  discountAmount  Decimal        @default(0) @map("discount_amount") @db.Decimal(18, 4)
+  taxAmount       Decimal        @default(0) @map("tax_amount") @db.Decimal(18, 4)
+  grandTotal      Decimal        @default(0) @map("grand_total") @db.Decimal(18, 4)
+  paidAmount      Decimal        @default(0) @map("paid_amount") @db.Decimal(18, 4)
+  remainingAmount Decimal        @default(0) @map("remaining_amount") @db.Decimal(18, 4)
+  paymentMethod   PaymentMethod? @map("payment_method")
+  paymentStatus   PaymentStatus  @default(UNPAID) @map("payment_status")
+  notes           String?
+  createdBy       String?        @map("created_by")
+  updatedBy       String?        @map("updated_by")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id])
+  supplier Supplier?      @relation(fields: [supplierId], references: [id])
+  items    PurchaseItem[]
+  returns  PurchaseReturn[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId, purchaseDate])
+  @@index([tenantId, status])
+  @@index([tenantId, supplierId])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id           String  @id @default(uuid())
+  purchaseId   String  @map("purchase_id")
+  productId    String  @map("product_id")
+  quantity     Decimal @db.Decimal(18, 4)
+  unitPrice    Decimal @map("unit_price") @db.Decimal(18, 4)
+  discount     Decimal @default(0) @db.Decimal(18, 4)
+  taxAmount    Decimal @default(0) @map("tax_amount") @db.Decimal(18, 4)
+  lineTotal    Decimal @map("line_total") @db.Decimal(18, 4)
+  returnedQty  Decimal @default(0) @map("returned_qty") @db.Decimal(18, 4)
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@index([purchaseId])
+  @@index([productId])
+  @@map("purchase_items")
+}
+
+model PurchaseReturn {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  purchaseId    String   @map("purchase_id")
+  supplierId    String?  @map("supplier_id")
+  returnNumber  String   @map("return_number")
+  returnDate    DateTime @default(now()) @map("return_date")
+  reason        String?
+  subtotal      Decimal  @default(0) @db.Decimal(18, 4)
+  grandTotal    Decimal  @default(0) @map("grand_total") @db.Decimal(18, 4)
+  createdBy     String?  @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant               @relation(fields: [tenantId], references: [id])
+  purchase Purchase             @relation(fields: [purchaseId], references: [id])
+  supplier Supplier?            @relation(fields: [supplierId], references: [id])
+  items    PurchaseReturnItem[]
+
+  @@unique([tenantId, returnNumber])
+  @@index([tenantId, returnDate])
+  @@map("purchase_returns")
+}
+
+model PurchaseReturnItem {
+  id               String  @id @default(uuid())
+  purchaseReturnId String  @map("purchase_return_id")
+  productId        String  @map("product_id")
+  quantity         Decimal @db.Decimal(18, 4)
+  unitPrice        Decimal @map("unit_price") @db.Decimal(18, 4)
+  lineTotal        Decimal @map("line_total") @db.Decimal(18, 4)
+
+  purchaseReturn PurchaseReturn @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
+  product        Product        @relation(fields: [productId], references: [id])
+
+  @@index([purchaseReturnId])
+  @@map("purchase_return_items")
+}
+
+model Sale {
+  id              String         @id @default(uuid())
+  tenantId        String         @map("tenant_id")
+  customerId      String?        @map("customer_id")
+  invoiceNumber   String         @map("invoice_number")
+  saleDate        DateTime       @default(now()) @map("sale_date")
+  status          SaleStatus     @default(COMPLETED)
+  subtotal        Decimal        @default(0) @db.Decimal(18, 4)
+  discountAmount  Decimal        @default(0) @map("discount_amount") @db.Decimal(18, 4)
+  taxAmount       Decimal        @default(0) @map("tax_amount") @db.Decimal(18, 4)
+  grandTotal      Decimal        @default(0) @map("grand_total") @db.Decimal(18, 4)
+  paidAmount      Decimal        @default(0) @map("paid_amount") @db.Decimal(18, 4)
+  remainingAmount Decimal        @default(0) @map("remaining_amount") @db.Decimal(18, 4)
+  changeAmount    Decimal        @default(0) @map("change_amount") @db.Decimal(18, 4)
+  paymentMethod   PaymentMethod  @default(CASH) @map("payment_method")
+  paymentStatus   PaymentStatus  @default(PAID) @map("payment_status")
+  totalCost       Decimal        @default(0) @map("total_cost") @db.Decimal(18, 4)
+  profitAmount    Decimal        @default(0) @map("profit_amount") @db.Decimal(18, 4)
+  cashierId       String?        @map("cashier_id")
+  notes           String?
+  createdBy       String?        @map("created_by")
+  updatedBy       String?        @map("updated_by")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
+  customer Customer?   @relation(fields: [customerId], references: [id])
+  items    SaleItem[]
+  returns  SaleReturn[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId, saleDate])
+  @@index([tenantId, status])
+  @@index([tenantId, customerId])
+  @@index([tenantId, cashierId])
+  @@map("sales")
+}
+
+model SaleItem {
+  id          String  @id @default(uuid())
+  saleId      String  @map("sale_id")
+  productId   String  @map("product_id")
+  quantity    Decimal @db.Decimal(18, 4)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(18, 4)
+  unitCost    Decimal @default(0) @map("unit_cost") @db.Decimal(18, 4)
+  discount    Decimal @default(0) @db.Decimal(18, 4)
+  taxAmount   Decimal @default(0) @map("tax_amount") @db.Decimal(18, 4)
+  lineTotal   Decimal @map("line_total") @db.Decimal(18, 4)
+  lineCost    Decimal @default(0) @map("line_cost") @db.Decimal(18, 4)
+  lineProfit  Decimal @default(0) @map("line_profit") @db.Decimal(18, 4)
+  returnedQty Decimal @default(0) @map("returned_qty") @db.Decimal(18, 4)
+
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([saleId])
+  @@index([productId])
+  @@map("sale_items")
+}
+
+model SaleReturn {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  saleId       String   @map("sale_id")
+  customerId   String?  @map("customer_id")
+  returnNumber String   @map("return_number")
+  returnDate   DateTime @default(now()) @map("return_date")
+  reason       String?
+  subtotal     Decimal  @default(0) @db.Decimal(18, 4)
+  grandTotal   Decimal  @default(0) @map("grand_total") @db.Decimal(18, 4)
+  refundMethod PaymentMethod @default(CASH) @map("refund_method")
+  createdBy    String?  @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id])
+  sale     Sale             @relation(fields: [saleId], references: [id])
+  customer Customer?        @relation(fields: [customerId], references: [id])
+  items    SaleReturnItem[]
+
+  @@unique([tenantId, returnNumber])
+  @@index([tenantId, returnDate])
+  @@map("sale_returns")
+}
+
+model SaleReturnItem {
+  id           String  @id @default(uuid())
+  saleReturnId String  @map("sale_return_id")
+  productId    String  @map("product_id")
+  quantity     Decimal @db.Decimal(18, 4)
+  unitPrice    Decimal @map("unit_price") @db.Decimal(18, 4)
+  unitCost     Decimal @default(0) @map("unit_cost") @db.Decimal(18, 4)
+  lineTotal    Decimal @map("line_total") @db.Decimal(18, 4)
+
+  saleReturn SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@index([saleReturnId])
+  @@map("sale_return_items")
+}
+
+model HeldSale {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  customerId     String?  @map("customer_id")
+  referenceName  String?  @map("reference_name")
+  discountAmount Decimal  @default(0) @map("discount_amount") @db.Decimal(18, 4)
+  notes          String?
+  createdBy      String?  @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id])
+  customer Customer?      @relation(fields: [customerId], references: [id])
+  items    HeldSaleItem[]
+
+  @@index([tenantId, createdAt])
+  @@map("held_sales")
+}
+
+model HeldSaleItem {
+  id         String  @id @default(uuid())
+  heldSaleId String  @map("held_sale_id")
+  productId  String  @map("product_id")
+  quantity   Decimal @db.Decimal(18, 4)
+  unitPrice  Decimal @map("unit_price") @db.Decimal(18, 4)
+  discount   Decimal @default(0) @db.Decimal(18, 4)
+
+  heldSale HeldSale @relation(fields: [heldSaleId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@index([heldSaleId])
+  @@map("held_sale_items")
+}
+
+model ExpenseCategory {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  expenses Expense[]
+
+  @@unique([tenantId, name])
+  @@map("expense_categories")
+}
+
+model Expense {
+  id              String        @id @default(uuid())
+  tenantId        String        @map("tenant_id")
+  categoryId      String?       @map("category_id")
+  amount          Decimal       @db.Decimal(18, 4)
+  expenseDate     DateTime      @default(now()) @map("expense_date")
+  paymentMethod   PaymentMethod @default(CASH) @map("payment_method")
+  description     String?
+  isVoided        Boolean       @default(false) @map("is_voided")
+  createdBy       String?       @map("created_by")
+  updatedBy       String?       @map("updated_by")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id])
+  category ExpenseCategory? @relation(fields: [categoryId], references: [id])
+
+  @@index([tenantId, expenseDate])
+  @@index([tenantId, categoryId])
+  @@map("expenses")
+}
+
+model AccountTransaction {
+  id          String           @id @default(uuid())
+  tenantId    String           @map("tenant_id")
+  partyType   AccountPartyType @map("party_type")
+  partyId     String           @map("party_id")
+  type        AccountTxnType
+  amount      Decimal          @db.Decimal(18, 4)
+  balanceAfter Decimal         @map("balance_after") @db.Decimal(18, 4)
+  paymentMethod PaymentMethod? @map("payment_method")
+  referenceType String?        @map("reference_type")
+  referenceId   String?        @map("reference_id")
+  notes       String?
+  createdBy   String?          @map("created_by")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, partyType, partyId, createdAt])
+  @@index([tenantId, type, createdAt])
+  @@map("account_transactions")
+}
+
+model CashSession {
+  id             String    @id @default(uuid())
+  tenantId       String    @map("tenant_id")
+  sessionDate    DateTime  @map("session_date") @db.Date
+  openingCash    Decimal   @default(0) @map("opening_cash") @db.Decimal(18, 4)
+  cashIn         Decimal   @default(0) @map("cash_in") @db.Decimal(18, 4)
+  cashOut        Decimal   @default(0) @map("cash_out") @db.Decimal(18, 4)
+  expectedCash   Decimal   @default(0) @map("expected_cash") @db.Decimal(18, 4)
+  actualCash     Decimal?  @map("actual_cash") @db.Decimal(18, 4)
+  difference     Decimal?  @db.Decimal(18, 4)
+  isClosed       Boolean   @default(false) @map("is_closed")
+  closedAt       DateTime? @map("closed_at")
+  closedBy       String?   @map("closed_by")
+  notes          String?
+  createdBy      String?   @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant       Tenant             @relation(fields: [tenantId], references: [id])
+  transactions CashTransaction[]
+
+  @@unique([tenantId, sessionDate])
+  @@index([tenantId, sessionDate])
+  @@map("cash_sessions")
+}
+
+model CashTransaction {
+  id            String      @id @default(uuid())
+  tenantId      String      @map("tenant_id")
+  cashSessionId String?     @map("cash_session_id")
+  type          CashTxnType
+  amount        Decimal     @db.Decimal(18, 4)
+  direction     String
+  referenceType String?     @map("reference_type")
+  referenceId   String?     @map("reference_id")
+  notes         String?
+  createdBy     String?     @map("created_by")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  cashSession CashSession? @relation(fields: [cashSessionId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([cashSessionId])
+  @@map("cash_transactions")
+}
+
+model DocumentSequence {
+  id         String @id @default(uuid())
+  tenantId   String @map("tenant_id")
+  docType    String @map("doc_type")
+  prefix     String
+  nextNumber Int    @default(1) @map("next_number")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, docType])
+  @@map("document_sequences")
+}
