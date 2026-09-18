@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { authenticate, requireTenant, requireTenantModule, requireCrudPermission } from '../middlewares/auth';
+import { authenticate, requireTenant, requireTenantModule } from '../middlewares/auth';
+import { requireIdempotency } from '../middlewares/idempotency';
 import { validate } from '../middlewares/validate';
 import * as controller from '../controllers/sale.controller';
 import {
@@ -14,7 +15,7 @@ const router = Router();
 router.use(authenticate, requireTenant, requireTenantModule('pos', 'sales_history'));
 
 router.get('/', validate({ query: saleListQuerySchema }), controller.list);
-router.post('/', validate({ body: createSaleSchema }), controller.create);
+router.post('/', requireIdempotency(), validate({ body: createSaleSchema }), controller.create);
 router.get('/held', controller.listHeld);
 router.post('/held', validate({ body: holdSaleSchema }), controller.hold);
 router.get('/held/:id', validate({ params: idParamSchema }), controller.getHeld);

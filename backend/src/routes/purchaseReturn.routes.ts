@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, requireStoreRole, requireTenant, requireTenantModule } from '../middlewares/auth';
+import { requireIdempotency } from '../middlewares/idempotency';
 import { validate } from '../middlewares/validate';
 import * as controller from '../controllers/purchaseReturn.controller';
 import {
@@ -16,6 +17,7 @@ router.get('/', validate({ query: purchaseReturnListQuerySchema }), controller.l
 router.get('/:id', validate({ params: idParamSchema }), controller.getById);
 router.post(
   '/',
+  requireIdempotency(),
   requireStoreRole('OWNER', 'MANAGER'),
   validate({ body: createPurchaseReturnSchema }),
   controller.create

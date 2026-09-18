@@ -2,32 +2,45 @@ import Decimal from 'decimal.js';
 
 Decimal.set({ precision: 28, rounding: Decimal.ROUND_HALF_UP });
 
+/** Accepts numbers, strings, Decimal.js, Prisma.Decimal, nullish, or unknown serialized values. */
 export type MoneyInput = Decimal.Value | null | undefined;
 
-export function toDecimal(value: MoneyInput): Decimal {
-  if (value === null || value === undefined || value === '') {
-    return new Decimal(0);
+function coerceMoney(value: unknown): Decimal.Value | null | undefined {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number' || typeof value === 'string') return value;
+  if (value instanceof Decimal) return value;
+  // Prisma.Decimal and similar decimal-like objects
+  if (typeof value === 'object' && value !== null && typeof (value as { toString?: unknown }).toString === 'function') {
+    return String(value);
   }
-  return new Decimal(value);
+  return null;
 }
 
-export function roundMoney(value: MoneyInput, places = 4): Decimal {
+export function toDecimal(value: MoneyInput | unknown): Decimal {
+  const coerced = coerceMoney(value as unknown);
+  if (coerced === null || coerced === undefined) {
+    return new Decimal(0);
+  }
+  return new Decimal(coerced);
+}
+
+export function roundMoney(value: MoneyInput | unknown, places = 4): Decimal {
   return toDecimal(value).toDecimalPlaces(places, Decimal.ROUND_HALF_UP);
 }
 
-export function add(...values: MoneyInput[]): Decimal {
+export function add(...values: Array<MoneyInput | unknown>): Decimal {
   return roundMoney(values.reduce<Decimal>((acc, v) => acc.plus(toDecimal(v)), new Decimal(0)));
 }
 
-export function sub(a: MoneyInput, b: MoneyInput): Decimal {
+export function sub(a: MoneyInput | unknown, b: MoneyInput | unknown): Decimal {
   return roundMoney(toDecimal(a).minus(toDecimal(b)));
 }
 
-export function mul(...values: MoneyInput[]): Decimal {
+export function mul(...values: Array<MoneyInput | unknown>): Decimal {
   return roundMoney(values.reduce<Decimal>((acc, v) => acc.times(toDecimal(v)), new Decimal(1)));
 }
 
-export function div(a: MoneyInput, b: MoneyInput): Decimal {
+export function div(a: MoneyInput | unknown, b: MoneyInput | unknown): Decimal {
   const divisor = toDecimal(b);
   if (divisor.isZero()) {
     throw new Error('Division by zero');
@@ -35,29 +48,29 @@ export function div(a: MoneyInput, b: MoneyInput): Decimal {
   return roundMoney(toDecimal(a).div(divisor));
 }
 
-export function toNumber(value: MoneyInput, places = 4): number {
+export function toNumber(value: MoneyInput | unknown, places = 4): number {
   return roundMoney(value, places).toNumber();
 }
 
-export function toMoneyString(value: MoneyInput, places = 4): string {
+export function toMoneyString(value: MoneyInput | unknown, places = 4): string {
   return roundMoney(value, places).toFixed(places);
 }
 
-export function isPositive(value: MoneyInput): boolean {
+export function isPositive(value: MoneyInput | unknown): boolean {
   return toDecimal(value).greaterThan(0);
 }
 
-export function isNegative(value: MoneyInput): boolean {
+export function isNegative(value: MoneyInput | unknown): boolean {
   return toDecimal(value).lessThan(0);
 }
 
-export function maxMoney(a: MoneyInput, b: MoneyInput): Decimal {
+export function maxMoney(a: MoneyInput | unknown, b: MoneyInput | unknown): Decimal {
   const left = toDecimal(a);
   const right = toDecimal(b);
   return left.greaterThan(right) ? left : right;
 }
 
-export function minMoney(a: MoneyInput, b: MoneyInput): Decimal {
+export function minMoney(a: MoneyInput | unknown, b: MoneyInput | unknown): Decimal {
   const left = toDecimal(a);
   const right = toDecimal(b);
   return left.lessThan(right) ? left : right;
