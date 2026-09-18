@@ -1,21 +1,20 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
-import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { AppHeader } from './AppHeader'
 import { AppSidebar } from './AppSidebar'
 import { LanguageSwitcher } from './LanguageSwitcher'
 import { Drawer } from '@/components/ui/Drawer'
+import { LoadingState } from '@/components/ui/LoadingState'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { cn } from '@/utils/cn'
 
 export function AppShell() {
-  const { t } = useTranslation('nav')
+  const { t } = useTranslation(['nav', 'common'])
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const isDesktop = useMediaQuery('(min-width: 1024px)')
   const location = useLocation()
-  const reduce = useReducedMotion()
   const isPos = location.pathname.startsWith('/pos')
 
   return (
@@ -30,7 +29,7 @@ export function AppShell() {
           <AppSidebar collapsed={collapsed} />
         </aside>
       ) : (
-        <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)} title={t('menu')}>
+        <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)} title={t('nav:menu')}>
           <AppSidebar onNavigate={() => setMobileOpen(false)} />
         </Drawer>
       )}
@@ -50,7 +49,7 @@ export function AppShell() {
         ) : (
           <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-b border-border bg-surface px-3 lg:hidden">
             <button type="button" className="text-sm font-semibold text-primary-700" onClick={() => setMobileOpen(true)}>
-              {t('menu')}
+              {t('nav:menu')}
             </button>
             <LanguageSwitcher />
           </div>
@@ -60,20 +59,15 @@ export function AppShell() {
             isPos ? 'flex min-h-0 flex-1 flex-col overflow-hidden p-0' : 'px-3 py-4 md:px-6 md:py-6',
           )}
         >
-          {isPos ? (
-            <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+          <Suspense fallback={<LoadingState className={isPos ? 'min-h-[50vh]' : 'min-h-[40vh]'} label={t('common:loading')} />}>
+            {isPos ? (
+              <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+                <Outlet />
+              </div>
+            ) : (
               <Outlet />
-            </div>
-          ) : (
-            <motion.div
-              key={location.pathname}
-              initial={reduce ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: reduce ? 0 : 0.18 }}
-            >
-              <Outlet />
-            </motion.div>
-          )}
+            )}
+          </Suspense>
         </main>
       </div>
     </div>

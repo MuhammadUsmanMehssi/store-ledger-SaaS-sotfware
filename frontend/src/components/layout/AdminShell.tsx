@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { Building2, LogOut, Menu, Moon, Shield, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +6,7 @@ import { Drawer } from '@/components/ui/Drawer'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher'
+import { LoadingState } from '@/components/ui/LoadingState'
 import { useAuth } from '@/hooks/useAuth'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { useTheme } from '@/hooks/useTheme'
@@ -90,7 +91,9 @@ export function AdminShell() {
           </div>
         </header>
         <main className="px-3 py-4 md:px-6 md:py-6">
-          <Outlet />
+          <Suspense fallback={<LoadingState className="min-h-[40vh]" label={t('common:loading')} />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

@@ -100,7 +100,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   type="button"
                   className="text-fg-subtle hover:text-fg"
                   onClick={() => dismiss(item.id)}
-                  aria-label={tDismiss}
+                  aria-label={t('dismiss')}
                 >
                   <X className="h-4 w-4" />
                 </button>

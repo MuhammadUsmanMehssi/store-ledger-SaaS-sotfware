@@ -96,7 +96,7 @@ export function ImageUploadField({
           dragOver && 'border-primary-500 bg-primary-50/60 ring-2 ring-primary-500/30 dark:bg-primary-900/30',
         )}
       >
-        <AnimatePresence mode="wait" initial={false}>
+        <AnimatePresence initial={false}>
           {preview ? (
             <motion.div
               key="preview"
